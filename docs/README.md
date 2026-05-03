@@ -105,3 +105,64 @@ The implementation is intentionally simple and does not yet model several detail
 - No distinction between payment types such as tuition, fees, or refunds.
 - No validation against negative or zero transaction amounts.
 - No persistent storage across program restarts.
+
+## Sequence Diagram
+
+The following Mermaid diagram shows the runtime data flow between the user, menu controller, business logic, and in-memory balance store.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Main as main.cob\nMainProgram
+  participant Ops as operations.cob\nOperations
+  participant Data as data.cob\nDataProgram
+
+  User->>Main: Start session
+  loop Until user selects Exit
+    Main->>User: Display account menu
+    User->>Main: Enter choice 1, 2, 3, or 4
+
+    alt View balance
+      Main->>Ops: CALL Operations("TOTAL ")
+      Ops->>Data: CALL DataProgram("READ", FINAL-BALANCE)
+      Data-->>Ops: Return STORAGE-BALANCE
+      Ops-->>Main: Display current balance
+      Main-->>User: Show balance
+
+    else Credit account
+      Main->>Ops: CALL Operations("CREDIT")
+      Ops->>User: Prompt for credit amount
+      User->>Ops: Enter amount
+      Ops->>Data: CALL DataProgram("READ", FINAL-BALANCE)
+      Data-->>Ops: Return current balance
+      Ops->>Ops: Add amount to FINAL-BALANCE
+      Ops->>Data: CALL DataProgram("WRITE", FINAL-BALANCE)
+      Data->>Data: Update STORAGE-BALANCE
+      Data-->>Ops: Confirm updated balance
+      Ops-->>Main: Display credited balance
+      Main-->>User: Show new balance
+
+    else Debit account
+      Main->>Ops: CALL Operations("DEBIT ")
+      Ops->>User: Prompt for debit amount
+      User->>Ops: Enter amount
+      Ops->>Data: CALL DataProgram("READ", FINAL-BALANCE)
+      Data-->>Ops: Return current balance
+      alt Sufficient funds
+        Ops->>Ops: Subtract amount from FINAL-BALANCE
+        Ops->>Data: CALL DataProgram("WRITE", FINAL-BALANCE)
+        Data->>Data: Update STORAGE-BALANCE
+        Data-->>Ops: Confirm updated balance
+        Ops-->>Main: Display debited balance
+        Main-->>User: Show new balance
+      else Insufficient funds
+        Ops-->>Main: Display insufficient funds message
+        Main-->>User: Show rejection message
+      end
+
+    else Exit
+      Main->>Main: Set CONTINUE-FLAG to "NO"
+      Main-->>User: Display goodbye message
+    end
+  end
+```
